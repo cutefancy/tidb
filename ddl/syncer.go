@@ -68,6 +68,7 @@ type SchemaSyncer interface {
 	// RemoveSelfVersionPath remove the self path from etcd.
 	RemoveSelfVersionPath() error
 	// OwnerUpdateGlobalVersion updates the latest version to the global path on etcd until updating is successful or the ctx is done.
+	// It can only be successfully updated when the version is larger than the original global version.
 	OwnerUpdateGlobalVersion(ctx context.Context, version int64) error
 	// GlobalVersionCh gets the chan for watching global version.
 	GlobalVersionCh() clientv3.WatchChan
@@ -225,8 +226,26 @@ func (s *schemaVersionSyncer) UpdateSelfVersion(ctx context.Context, version int
 func (s *schemaVersionSyncer) OwnerUpdateGlobalVersion(ctx context.Context, version int64) error {
 	startTime := time.Now()
 	ver := strconv.FormatInt(version, 10)
-	err := s.putKV(ctx, putKeyRetryUnlimited, DDLGlobalSchemaVersion, ver)
 
+	var err error
+	for i := 0; i < putKeyRetryUnlimited; i++ {
+		if isContextDone(ctx) {
+			return errors.Trace(ctx.Err())
+		}
+
+		childCtx, cancel := context.WithTimeout(ctx, keyOpDefaultTimeout)
+		// It can only be set when the version is larger than the original global version.
+		_, err = s.etcdCli.Txn(childCtx).
+			If(clientv3.Compare(clientv3.Value(DDLGlobalSchemaVersion), "<", ver)).
+			Then(clientv3.OpPut(DDLGlobalSchemaVersion, ver)).
+			Commit()
+		cancel()
+		if err == nil {
+			break
+		}
+		log.Warnf("[syncer] set global schema version %s failed %v no.%d", ver, err, i)
+		time.Sleep(keyOpRetryInterval)
+	}
 	metrics.OwnerHandleSyncerHistogram.WithLabelValues(metrics.OwnerUpdateGlobalVersion, metrics.RetLabel(err)).Observe(time.Since(startTime).Seconds())
 	return errors.Trace(err)
 }
@@ -337,7 +356,7 @@ func (s *schemaVersionSyncer) OwnerCheckAllVersions(ctx context.Context, latestV
 				succ = false
 				break
 			}
-			if int64(ver) != latestVer {
+			if int64(ver) < latestVer {
 				if notMatchVerCnt%intervalCnt == 0 {
 					log.Infof("[syncer] check all versions, ddl %s is not synced, current ver %v, latest version %v, continue checking",
 						kv.Key, ver, latestVer)
