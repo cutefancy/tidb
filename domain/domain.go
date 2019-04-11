@@ -79,6 +79,7 @@ type Domain struct {
 // It returns the latest schema version, the changed table IDs, whether it's a full load and an error.
 func (do *Domain) loadInfoSchema(handle *infoschema.Handle, usedSchemaVersion int64, startTS uint64) (int64, []int64, bool, error) {
 	var fullLoad bool
+	startTime := time.Now()
 	snapshot, err := do.store.GetSnapshot(kv.NewVersion(startTS))
 	if err != nil {
 		return 0, nil, fullLoad, err
@@ -91,6 +92,7 @@ func (do *Domain) loadInfoSchema(handle *infoschema.Handle, usedSchemaVersion in
 	if usedSchemaVersion != 0 && usedSchemaVersion == latestSchemaVersion {
 		return latestSchemaVersion, nil, fullLoad, nil
 	}
+	sub := time.Since(startTime)
 
 	// Update self schema version to etcd.
 	defer func() {
@@ -105,7 +107,7 @@ func (do *Domain) loadInfoSchema(handle *infoschema.Handle, usedSchemaVersion in
 		}
 	}()
 
-	startTime := time.Now()
+	// startTime := time.Now()
 	ok, tblIDs, err := do.tryLoadSchemaDiffs(m, usedSchemaVersion, latestSchemaVersion)
 	if err != nil {
 		// We can fall back to full load, don't need to return the error.
@@ -115,6 +117,7 @@ func (do *Domain) loadInfoSchema(handle *infoschema.Handle, usedSchemaVersion in
 		logutil.Logger(context.Background()).Info("diff load InfoSchema success",
 			zap.Int64("usedSchemaVersion", usedSchemaVersion),
 			zap.Int64("latestSchemaVersion", latestSchemaVersion),
+			zap.Duration("xxx start time", sub),
 			zap.Duration("start time", time.Since(startTime)),
 			zap.Int64s("tblIDs", tblIDs))
 		return latestSchemaVersion, tblIDs, fullLoad, nil

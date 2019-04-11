@@ -13,6 +13,13 @@
 
 package kv
 
+import (
+	"time"
+
+	"github.com/pingcap/log"
+	"go.uber.org/zap"
+)
+
 // UnionStore is a store that wraps a snapshot for read and a BufferStore for buffered write.
 // Also, it provides some transaction related utilities.
 type UnionStore interface {
@@ -178,6 +185,7 @@ func (lmb *lazyMemBuffer) SetCap(cap int) {
 
 // Get implements the Retriever interface.
 func (us *unionStore) Get(k Key) ([]byte, error) {
+	startTime := time.Now()
 	v, err := us.MemBuffer.Get(k)
 	if IsErrNotFound(err) {
 		if _, ok := us.opts.Get(PresumeKeyNotExists); ok {
@@ -189,6 +197,10 @@ func (us *unionStore) Get(k Key) ([]byte, error) {
 			}
 			return nil, ErrNotExist
 		}
+	}
+	sub := time.Since(startTime)
+	if sub > (50 * time.Millisecond) {
+		log.Info("union store get", zap.String("key", string(k)), zap.Duration("time", sub))
 	}
 	if IsErrNotFound(err) {
 		v, err = us.BufferStore.r.Get(k)
