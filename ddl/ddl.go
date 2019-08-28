@@ -598,6 +598,7 @@ func (d *ddl) doDDLJob(ctx sessionctx.Context, job *model.Job) error {
 	for {
 		select {
 		case <-d.ddlJobDoneCh:
+			time.Sleep(time.Millisecond * 8)
 		case <-ticker.C:
 		}
 
