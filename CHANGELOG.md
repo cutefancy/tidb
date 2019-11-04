@@ -2,7 +2,7 @@
 All notable changes to this project will be documented in this file. See also [Release Notes](https://github.com/pingcap/docs/blob/master/releases/rn.md), [TiKV Changelog](https://github.com/tikv/tikv/blob/master/CHANGELOG.md) and [PD Changelog](https://github.com/pingcap/pd/blob/master/CHANGELOG.md).
 
 ## [3.0.5] 2019-10-23
-## SQL Optimizer
+### SQL Optimizer
 * Support boundary checking on Window Functions [#12404](https://github.com/pingcap/tidb/pull/12404)
 * Fix the issue that `IndexJoin` on the partition table returns incorrect results [#12712](https://github.com/pingcap/tidb/pull/12712)
 * Fix the issue that the `ifnull` function on the top of the outer join `Apply` operator returns incorrect results [#12694](https://github.com/pingcap/tidb/pull/12694)
@@ -12,7 +12,7 @@ All notable changes to this project will be documented in this file. See also [R
 * Fix the statistics error caused by shallow copy when initializing statistics [#12817](https://github.com/pingcap/tidb/pull/12817)
 * Fix the issue that the `str_to_date` function in TiDB returns a different result from MySQL when the date string and the format string do not match [#12725](https://github.com/pingcap/tidb/pull/12725)
 
-## SQL Execution Engine
+### SQL Execution Engine
 * Fix the panic issue when the `from_unixtime` function handles null [#12551](https://github.com/pingcap/tidb/pull/12551)
 * Fix the `invalid list index` error reported when canceling DDL jobs [#12671](https://github.com/pingcap/tidb/pull/12671)
 * Fix the issue that arrays were out of bounds when Window Functions are used [#12660](https://github.com/pingcap/tidb/pull/12660)
@@ -20,7 +20,7 @@ All notable changes to this project will be documented in this file. See also [R
 * Fix the issue that the query is hanged when `HashAgg` serves as a child node of `Apply` [#12766](https://github.com/pingcap/tidb/pull/12766)
 * Fix the issue that the `AND` and `OR` logical expressions return incorrect results when it comes to type conversion [#12811](https://github.com/pingcap/tidb/pull/12811)
 
-## Server
+### Server
 * Implement the interface function that modifies transaction TTL to help support large transactions later [#12397](https://github.com/pingcap/tidb/pull/12397)
 * Support extending the transaction TTL as needed (up to 10 minutes) to support pessimistic transactions [#12579](https://github.com/pingcap/tidb/pull/12579)
 * Adjust the number of times that TiDB caches schema changes and corresponding changed table information from 100 to 1024, and support modification by using the `tidb_max_delta_schema_count` system variable [#12502](https://github.com/pingcap/tidb/pull/12502)
@@ -33,7 +33,7 @@ All notable changes to this project will be documented in this file. See also [R
 * Fix the issue that the `INSERT IGNORE` statement performance is decreased because `tikvSnapshot` does not properly cache the KV results of `BatchGet()` [#12872](https://github.com/pingcap/tidb/pull/12872)
 * Fix the issue that the TiDB response speed was relatively low because of slow connection to some KV services [#12814](https://github.com/pingcap/tidb/pull/12814)
 
-## DDL
+### DDL
 * Fix the issue that the `Create Table` operation does not correctly set the Int type default value for the Set column [#12267](https://github.com/pingcap/tidb/pull/12267)
 * Support multiple `unique`s when creating a unique index using the `Create Table` statement [#12463](https://github.com/pingcap/tidb/pull/12463)
 * Fix the issue that populating the default value of this column for existing rows might cause an error when adding a Bit type column using `Alter Table` [#12489](https://github.com/pingcap/tidb/pull/12489)
@@ -41,23 +41,23 @@ All notable changes to this project will be documented in this file. See also [R
 * Support checking the consistency of the partition type and the partition key type when creating a table or adding a partition, for the Range partitioned table with the Date or Datetime type column as the partition key [#12792](https://github.com/pingcap/tidb/pull/12792)
 * Add a check that the Unique Key column set needs to be greater than or equal to the partitioned column set when creating a Range partitioned table [#12718](https://github.com/pingcap/tidb/pull/12718)
 
-## Monitor
+### Monitor
 * Add the monitoring metrics of Commit and Rollback operations to the `Transaction OPS` dashboard [#12505](https://github.com/pingcap/tidb/pull/12505)
 * Add the monitoring metrics of `Add Index` operation progress [#12390](https://github.com/pingcap/tidb/pull/12390)
 
 ## [3.0.4] 2019-10-08
-## New features
+### New features
 * Add system table `performance_schema.events_statements_summary_by_digest` to troubleshoot performance issues at SQL level
 * Add the `WHERE` clause in TiDB’s `SHOW TABLE REGIONS` syntax
 * Add the `worker-count` and   `txn-batch` configuration items in Reparo to control the recovery speed
 
-## Improvements
+### Improvements
 * Support `Split` commands in batches and the empty `Split` command in TiKV to split Regions in batches
 * Support double linked list for RocksDB in TiKV to improve performance of  reverse scan
 * Add two perf tools -`iosnoop` and `funcslower` in TiDB Ansible to better diagnose the cluster state
 * Optimize the output of slow query logs in TiDB by deleting redundant fields
 
-## Changed behaviors
+### Changed behaviors
 * Update the default value of `txn-local-latches.enable` to `false` to disable the default behaviour of checking conflicts of local transactions in TiDB
 * Add the `tidb_txn_mode` system variable of global scope in TiDB and allow using pessimistic lock by default. Note that TiDB still adopts optimistic lock by default.
 * Replace the `Index_ids` field in TiDB slow query logs with `Index_names`  to improve the usability of slow query logs
@@ -65,19 +65,19 @@ All notable changes to this project will be documented in this file. See also [R
 * Return the `Out Of Memory Quota` error instead of disconnect links in TiDB when a SQL execution exceeds the memory limit
 * Disallow dropping the `AUTO INCREMENT` attribute of columns in TiDB to avoid misoperations. To drop this attribute, change the `tidb_allow_remove_auto_inc` system * variable.  
 
-## Fixed Issues
+### Fixed Issues
 * Fix the issue in TiDB that the special syntax `PRE_SPLIT_REGIONS` does not  replicate data to the downstream by using notes
 * Fix the issue in TiDB that the slow query logs are incorrect when getting the result of `PREPARE` + `EXECUTE` by using the cursor
 * Fix the issue in PD that adjacent small Regions cannot be merged
 * Fix the issue that too many file descriptors are opened in idle clusters
 * Fix the issue that 
 
-## Contributors
+### Contributors
 Our thanks go to the following contributors from the community for helping this release:
 * [sduzh](https://github.com/sduzh)
 * [lizhenda](https://github.com/lizhenda)
 
-## SQL Optimizer
+### SQL Optimizer
 * Fix the issue that  invalid query ranges might be resulted when splitted by feedback [#12170](https://github.com/pingcap/tidb/pull/12170)
 * Display the returned error of the `SHOW STATS_BUCKETS` statement in hexadecimal   when the result contains invalid Keys [#12094](https://github.com/pingcap/tidb/pull/12094)
 * Fix the issue that when a query contains the `SLEEP` function (for example, `select 1 from (select sleep(1)) t;)`), column pruning causes invalid `sleep(1)`  during query [#11953](https://github.com/pingcap/tidb/pull/11953)
@@ -87,7 +87,7 @@ Our thanks go to the following contributors from the community for helping this 
 * Fix the error occurred when converting the subqueries contained in the `Update` statement [#12483](https://github.com/pingcap/tidb/pull/12483)
 * Optimize execution performance of the `select ... limit ... offset ...` statement by pushing the Limit operator down to the `IndexLookUpReader` execution logic [#12378](https://github.com/pingcap/tidb/pull/12378)
 
-## SQL Execution Engine
+### SQL Execution Engine
 * Print the SQL statement in the log when the `PREPARED` statement is incorrectly executed [#12191](https://github.com/pingcap/tidb/pull/12191)
 * Support partition pruning when   the `UNIX_TIMPESTAMP` function is used to implement partitioning [#12169](https://github.com/pingcap/tidb/pull/12169)
 * Fix the issue that no error is reported when `AUTO INCREMENT` incorrectly allocates `MAX int64` and `MAX uint64` [#12162](https://github.com/pingcap/tidb/pull/12162)
@@ -104,7 +104,7 @@ Our thanks go to the following contributors from the community for helping this 
 * Refine the usage of expression blacklist (for example, `<` is equivalent to `lt`.) [#11975](https://github.com/pingcap/tidb/pull/11975)
 * Add the database prefix to the function name in the error message of non-existing functions (for example, `[expression:1305]FUNCTION test.std_samp does not exist`) [#12111](https://github.com/pingcap/tidb/pull/12111)
 
-## Server
+### Server
 * Add the `Prev_stmt` field in slow query logs to output the previous statement when the last statement is `COMMIT` [#12180](https://github.com/pingcap/tidb/pull/12180)
 * Optimize the output of slow query logs by deleting redundant fields [#12144](https://github.com/pingcap/tidb/pull/12144)
 * Modify the default value of `txn-local-latches.enable` to `false` to disable the check for conflicts of local transactions in TiDB [#12095](https://github.com/pingcap/tidb/pull/12095)
@@ -115,14 +115,14 @@ Our thanks go to the following contributors from the community for helping this 
 * Support `tidb_enable_stmt_summary`. When this feature is enabled, TiDB counts the SQL statements and the result can be queried by using the system table `performance_schema.events_statements_summary_by_digest`. [#12308](https://github.com/pingcap/tidb/pull/12308)
 * Adjust the level of some logs in tikv-client (for example, change the  log level of `batchRecvLoop fails` from `ERROR` to `INFO`) [#12383](https://github.com/pingcap/tidb/pull/12383)
 
-## DDL
+### DDL
 * Add the variable of `tidb_allow_remove_auto_inc`. Dropping the `AUTO INCREMENT` attribute of the column is disabled by default [#12145](https://github.com/pingcap/tidb/pull/12145)
 * Fix the issue that the  uncommented TiDB-specific syntax `PRE_SPLIT_REGIONS` might cause t  errors in the downstream database during data  replication [#12120](https://github.com/pingcap/tidb/pull/12120)
 * Add the `split-region-max-num` variable in the configuration file so that the maximum allowable number of Regions is adjustable  [#12097](https://github.com/pingcap/tidb/pull/12079)
 * Support splitting a Region into multiple Regions and fix the timeout issue during  Region scattering [#12343](https://github.com/pingcap/tidb/pull/12343)
 * Fix the issue that the `drop index` statement fails  when the index that contains  an `auto_increment` column  referenced byanother  two indexes [#12344](https://github.com/pingcap/tidb/pull/12344)
 
-## Monitor 
+### Monitor 
 * Add the `connection_transient_failure_count` monitoring metric to count the number of gRPC connection errors in `tikvclient` [#12093](https://github.com/pingcap/tidb/pull/12093)
 
 ## [3.0.3] 2019-08-29
