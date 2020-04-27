@@ -49,6 +49,7 @@ import (
 	util2 "github.com/pingcap/tidb/util"
 	"github.com/pingcap/tidb/util/chunk"
 	utilhint "github.com/pingcap/tidb/util/hint"
+	"github.com/pingcap/tidb/util/logutil"
 	"github.com/pingcap/tidb/util/plancodec"
 )
 
@@ -732,6 +733,7 @@ func (b *PlanBuilder) buildSelection(ctx context.Context, p LogicalPlan, where a
 		if expr == nil {
 			continue
 		}
+		logutil.BgLogger().Warn(fmt.Sprintf("======================   expr %v", expr))
 		cnfItems := expression.SplitCNFItems(expr)
 		for _, item := range cnfItems {
 			if con, ok := item.(*expression.Constant); ok && con.DeferredExpr == nil && con.ParamMarker == nil {
@@ -3528,11 +3530,14 @@ func (b *PlanBuilder) buildDelete(ctx context.Context, delete *ast.DeleteStmt) (
 	oldSchema := p.Schema()
 	oldLen := oldSchema.Len()
 
+	var condCols []*expression.Column
 	if delete.Where != nil {
 		p, err = b.buildSelection(ctx, p, delete.Where, nil)
 		if err != nil {
 			return nil, err
 		}
+
+		condCols = expression.ExtractColumnsFromExpressions(condCols, p.(*LogicalSelection).Conditions, nil)
 	}
 	if b.ctx.GetSessionVars().TxnCtx.IsPessimistic {
 		if !delete.IsMultiTable {
@@ -3646,7 +3651,34 @@ func (b *PlanBuilder) buildDelete(ctx context.Context, delete *ast.DeleteStmt) (
 		tblID2table[id], _ = b.is.TableByID(id)
 	}
 	del.TblColPosInfos, err = buildColumns2Handle(del.names, tblID2Handle, tblID2table, false)
+	if err != nil {
+		return nil, err
+	}
+
+	err = checkDeleteList(tblID2table, del, condCols)
+
 	return del, err
+}
+
+func checkDeleteList(tblID2table map[int64]table.Table, del *Delete, conditionCols []*expression.Column) error {
+	for _, info := range del.TblColPosInfos {
+		tbl := tblID2table[info.TblID]
+		for _, col := range conditionCols {
+			for _, c := range tbl.DeletableCols() {
+
+				logutil.BgLogger().Warn(fmt.Sprintf("======================   tbl %v, col %v, c %v, col.ID %d, c.ID %d", tbl.Meta().Name, col.OrigName, c, col.ID, c.ID))
+				if col.ID != c.ID {
+					continue
+				}
+				if c.State != model.StatePublic {
+					logutil.BgLogger().Warn(fmt.Sprintf("======================   col %v", c.Name))
+					return ErrUnknownColumn.GenWithStackByArgs(c.Name, clauseMsg[whereClause])
+				}
+				break
+			}
+		}
+	}
+	return nil
 }
 
 func resolveIndicesForTblID2Handle(tblID2Handle map[int64][]*expression.Column, schema *expression.Schema) (map[int64][]*expression.Column, error) {
