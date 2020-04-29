@@ -563,20 +563,22 @@ func (s *testStateChangeSuite) TestWriteOnlyForAddColumns(c *C) {
 func (s *testStateChangeSuite) TestDeleteOnlyX(c *C) {
 	_, err := s.se.Execute(context.Background(), "use test_db_state")
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), `create table tt (c int, c4 int)`)
+	_, err = s.se.Execute(context.Background(), `create table tt (c varchar(64), c4 int)`)
 	c.Assert(err, IsNil)
-	_, err = s.se.Execute(context.Background(), "insert into tt (c, c4) values(8, 8)")
+	_, err = s.se.Execute(context.Background(), "insert into tt (c, c4) values('a', 8)")
 	c.Assert(err, IsNil)
 	defer s.se.Execute(context.Background(), "drop table tt")
 
-	sqls := make([]sqlWithErr, 3)
+	sqls := make([]sqlWithErr, 5)
 	sqls[0] = sqlWithErr{"insert t set c1 = 'c1_insert', c3 = '2018-02-12', c4 = 1",
 		errors.Errorf("Can't find column c1")}
 	sqls[1] = sqlWithErr{"update t set c1 = 'c1_insert', c3 = '2018-02-12', c4 = 1",
 		errors.Errorf("[planner:1054]Unknown column 'c1' in 'field list'")}
 	sqls[2] = sqlWithErr{"delete from t where c1='a'",
 		errors.Errorf("[planner:1054]Unknown column 'c1' in 'where clause'")}
-	sqls[2] = sqlWithErr{"delete t, tt from tt inner join t on t.c4=tt.c4 where tt.c=8 and t.c1='a'",
+	sqls[3] = sqlWithErr{"delete t, tt from tt inner join t on t.c4=tt.c4 where tt.c='a' and t.c1='a'",
+		errors.Errorf("[planner:1054]Unknown column 'c1' in 'where clause'")}
+	sqls[4] = sqlWithErr{"delete t, tt from tt inner join t on t.c1=tt.c where tt.c='a'",
 		errors.Errorf("[planner:1054]Unknown column 'c1' in 'where clause'")}
 	query := &expectQuery{sql: "select * from t;", rows: []string{"N 2017-07-01 00:00:00 8"}}
 	dropColumnSQL := "alter table t drop column c1"

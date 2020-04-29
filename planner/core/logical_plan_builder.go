@@ -734,7 +734,6 @@ func (b *PlanBuilder) buildSelection(ctx context.Context, p LogicalPlan, where a
 		if expr == nil {
 			continue
 		}
-		logutil.BgLogger().Warn(fmt.Sprintf("======================   expr %v", expr))
 		cnfItems := expression.SplitCNFItems(expr)
 		for _, item := range cnfItems {
 			if con, ok := item.(*expression.Constant); ok && con.DeferredExpr == nil && con.ParamMarker == nil {
@@ -3656,72 +3655,38 @@ func (b *PlanBuilder) buildDelete(ctx context.Context, delete *ast.DeleteStmt) (
 		return nil, err
 	}
 
-	err = b.checkDeleteList(tblID2table, del, condCols)
+	err = b.checkDeleteList(condCols)
 
 	return del, err
 }
 
-func (b *PlanBuilder) getTableInfo(col *expression.Column) table.Table {
-	strs := strings.Split(col.OrigName, ".")
-	var dbName model.CIStr
-	if len(strs) == 3 {
-		dbName = model.NewCIStr("strs[0]")
-	} else if len(strs) == 2 {
-		dbName = model.NewCIStr(b.ctx.GetSessionVars().CurrentDB)
-	}
-	logutil.BgLogger().Warn("xxx", zap.String("0", strs[0]), zap.String("1", strs[1]), zap.String("2", strs[2]))
-	db, ok := b.is.SchemaByName(dbName)
-	if ok {
-		logutil.BgLogger().Warn("--------------------------- db info name", zap.String("db", db.Name.O))
-	}
-	db, ok = b.is.SchemaByID(3)
-	if ok {
-		logutil.BgLogger().Warn("--------------------------- db info ID", zap.String("db", db.Name.O))
-	}
-	t, ok := b.is.TableByID(23)
-	if ok {
-		logutil.BgLogger().Warn("--------------------------- tbl info ID", zap.String("tbl", t.Meta().Name.O))
-	}
-	tbl, err := b.is.TableByName(dbName, model.NewCIStr(strs[1]))
-	if err != nil {
-		logutil.BgLogger().Warn("--------------------------- condition hasn't table info", zap.String("col", col.OrigName))
-	}
-	return tbl
-}
-
-func (b *PlanBuilder) checkDeleteList(tblID2table map[int64]table.Table, del *Delete, conditionCols []*expression.Column) error {
+func (b *PlanBuilder) checkDeleteList(conditionCols []*expression.Column) error {
 	for _, col := range conditionCols {
-		logutil.BgLogger().Warn("**************************", zap.String("expr", col.OrigName))
-		tbl := b.getTableInfo(col)
+		strs := strings.Split(col.OrigName, ".")
+		var dbName model.CIStr
+		// The col format is "database.table.col".
+		if len(strs) == 3 {
+			dbName = model.NewCIStr(strs[0])
+			// The col format is "table.col".
+		} else if len(strs) == 2 {
+			dbName = model.NewCIStr(b.ctx.GetSessionVars().CurrentDB)
+		}
+		tbl, err := b.is.TableByName(dbName, model.NewCIStr(strs[1]))
+		if err != nil {
+			logutil.BgLogger().Error("condition hasn't table info", zap.String("col", col.OrigName))
+			continue
+		}
+
 		for _, c := range tbl.DeletableCols() {
 			if col.ID != c.ID {
 				continue
 			}
 			if c.State != model.StatePublic {
-				logutil.BgLogger().Warn(fmt.Sprintf("======================   col %v", c.Name))
 				return ErrUnknownColumn.GenWithStackByArgs(c.Name, clauseMsg[whereClause])
 			}
 			break
 		}
 	}
-
-	// for _, info := range del.TblColPosInfos {
-	// 	tbl := tblID2table[info.TblID]
-	// 	for _, col := range conditionCols {
-	// 		for _, c := range tbl.DeletableCols() {
-
-	// 			logutil.BgLogger().Warn(fmt.Sprintf("======================   tbl %v, col %v, c %v, col.ID %d, c.ID %d", tbl.Meta().Name, col.OrigName, c, col.ID, c.ID))
-	// 			if col.ID != c.ID {
-	// 				continue
-	// 			}
-	// 			if c.State != model.StatePublic {
-	// 				logutil.BgLogger().Warn(fmt.Sprintf("======================   col %v", c.Name))
-	// 				return ErrUnknownColumn.GenWithStackByArgs(c.Name, clauseMsg[whereClause])
-	// 			}
-	// 			break
-	// 		}
-	// 	}
-	// }
 	return nil
 }
 
