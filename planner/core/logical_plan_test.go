@@ -33,8 +33,10 @@ import (
 	"github.com/pingcap/tidb/sessionctx"
 	"github.com/pingcap/tidb/sessionctx/variable"
 	"github.com/pingcap/tidb/util/hint"
+	"github.com/pingcap/tidb/util/logutil"
 	"github.com/pingcap/tidb/util/testleak"
 	"github.com/pingcap/tidb/util/testutil"
+	"go.uber.org/zap"
 )
 
 var _ = Suite(&testPlanSuite{})
@@ -467,6 +469,7 @@ func (s *testPlanSuite) TestPlanBuilder(c *C) {
 
 		s.ctx.GetSessionVars().HashJoinConcurrency = 1
 		Preprocess(s.ctx, stmt, s.is)
+		logutil.BgLogger().Error("func", zap.String("sql", ca))
 		p, _, err := BuildLogicalPlan(ctx, s.ctx, stmt, s.is)
 		c.Assert(err, IsNil)
 		if lp, ok := p.(LogicalPlan); ok {

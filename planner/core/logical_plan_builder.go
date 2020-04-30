@@ -593,6 +593,11 @@ func (b *PlanBuilder) buildJoin(ctx context.Context, joinNode *ast.Join) (Logica
 			return nil, errors.New("ON condition doesn't support subqueries yet")
 		}
 		onCondition := expression.SplitCNFItems(onExpr)
+		if b.inDeleteStmt {
+			if err = b.checkDeleteColStates(onClause, onCondition); err != nil {
+				return nil, err
+			}
+		}
 		joinPlan.AttachOnConds(onCondition)
 	} else if joinPlan.JoinType == InnerJoin {
 		// If a inner join without "ON" or "USING" clause, it's a cartesian
@@ -734,6 +739,7 @@ func (b *PlanBuilder) buildSelection(ctx context.Context, p LogicalPlan, where a
 		if expr == nil {
 			continue
 		}
+		logutil.BgLogger().Warn("--------", zap.String("cond", cond.Text()), zap.String("expr", expr.String()))
 		cnfItems := expression.SplitCNFItems(expr)
 		for _, item := range cnfItems {
 			if con, ok := item.(*expression.Constant); ok && con.DeferredExpr == nil && con.ParamMarker == nil {
@@ -3512,6 +3518,43 @@ func extractDefaultExpr(node ast.ExprNode) *ast.DefaultExpr {
 	return nil
 }
 
+// checkDeleteColStates checks the columns states in "on" or "where" clause.
+func (b *PlanBuilder) checkDeleteColStates(clauseCode clauseCode, conditionExprs []expression.Expression) error {
+	var condCols []*expression.Column
+	condCols = expression.ExtractColumnsFromExpressions(condCols, conditionExprs, nil)
+
+	for _, col := range condCols {
+		strs := strings.Split(col.OrigName, ".")
+		var dbName model.CIStr
+		// The col format is "database.table.col".
+		if len(strs) == 3 {
+			dbName = model.NewCIStr(strs[0])
+			// The col format is "table.col".
+		} else if len(strs) == 2 {
+			dbName = model.NewCIStr(b.ctx.GetSessionVars().CurrentDB)
+			// The col format is columnPrefix+col.UniqueID.
+		} else {
+			logutil.BgLogger().Error("the column hasn't database and table name", zap.String("col", col.OrigName), zap.String("clause", clauseMsg[clauseCode]))
+		}
+		tbl, err := b.is.TableByName(dbName, model.NewCIStr(strs[1]))
+		if err != nil {
+			logutil.BgLogger().Error("condition hasn't table info", zap.String("col", col.OrigName))
+			continue
+		}
+
+		for _, c := range tbl.DeletableCols() {
+			if col.ID != c.ID {
+				continue
+			}
+			if c.State != model.StatePublic {
+				return ErrUnknownColumn.GenWithStackByArgs(c.Name, clauseMsg[clauseCode])
+			}
+			break
+		}
+	}
+	return nil
+}
+
 func (b *PlanBuilder) buildDelete(ctx context.Context, delete *ast.DeleteStmt) (Plan, error) {
 	b.pushSelectOffset(0)
 	b.pushTableHints(delete.TableHints, utilhint.TypeDelete, 0)
@@ -3530,14 +3573,21 @@ func (b *PlanBuilder) buildDelete(ctx context.Context, delete *ast.DeleteStmt) (
 	oldSchema := p.Schema()
 	oldLen := oldSchema.Len()
 
-	var condCols []*expression.Column
 	if delete.Where != nil {
+		logutil.BgLogger().Warn("========0")
+		logutil.BgLogger().Warn("========1")
 		p, err = b.buildSelection(ctx, p, delete.Where, nil)
 		if err != nil {
 			return nil, err
 		}
 
-		condCols = expression.ExtractColumnsFromExpressions(condCols, p.(*LogicalSelection).Conditions, nil)
+		selectionPlan, ok := p.(*LogicalSelection)
+		if ok {
+			logutil.BgLogger().Warn("-------------", zap.Reflect("conds", selectionPlan.Conditions))
+			if err = b.checkDeleteColStates(whereClause, selectionPlan.Conditions); err != nil {
+				return nil, err
+			}
+		}
 	}
 	if b.ctx.GetSessionVars().TxnCtx.IsPessimistic {
 		if !delete.IsMultiTable {
@@ -3651,43 +3701,8 @@ func (b *PlanBuilder) buildDelete(ctx context.Context, delete *ast.DeleteStmt) (
 		tblID2table[id], _ = b.is.TableByID(id)
 	}
 	del.TblColPosInfos, err = buildColumns2Handle(del.names, tblID2Handle, tblID2table, false)
-	if err != nil {
-		return nil, err
-	}
-
-	err = b.checkDeleteList(condCols)
 
 	return del, err
-}
-
-func (b *PlanBuilder) checkDeleteList(conditionCols []*expression.Column) error {
-	for _, col := range conditionCols {
-		strs := strings.Split(col.OrigName, ".")
-		var dbName model.CIStr
-		// The col format is "database.table.col".
-		if len(strs) == 3 {
-			dbName = model.NewCIStr(strs[0])
-			// The col format is "table.col".
-		} else if len(strs) == 2 {
-			dbName = model.NewCIStr(b.ctx.GetSessionVars().CurrentDB)
-		}
-		tbl, err := b.is.TableByName(dbName, model.NewCIStr(strs[1]))
-		if err != nil {
-			logutil.BgLogger().Error("condition hasn't table info", zap.String("col", col.OrigName))
-			continue
-		}
-
-		for _, c := range tbl.DeletableCols() {
-			if col.ID != c.ID {
-				continue
-			}
-			if c.State != model.StatePublic {
-				return ErrUnknownColumn.GenWithStackByArgs(c.Name, clauseMsg[whereClause])
-			}
-			break
-		}
-	}
-	return nil
 }
 
 func resolveIndicesForTblID2Handle(tblID2Handle map[int64][]*expression.Column, schema *expression.Schema) (map[int64][]*expression.Column, error) {
