@@ -195,6 +195,8 @@ type Column struct {
 
 	OrigName string
 	IsHidden bool
+	// IsPublicState whether the schema state of this column is public.
+	IsPublicState bool
 
 	// InOperand indicates whether this column is the inner operand of column equal condition converted
 	// from `[not] in (subq)`.

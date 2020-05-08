@@ -2774,13 +2774,16 @@ func (b *PlanBuilder) buildDataSource(ctx context.Context, tn *ast.TableName, as
 			OrigColName: col.Name,
 			Hidden:      col.Hidden,
 		})
+		isPublicState := col.State == model.StatePublic
 		newCol := &expression.Column{
-			UniqueID: sessionVars.AllocPlanColumnID(),
-			ID:       col.ID,
-			RetType:  &col.FieldType,
-			OrigName: names[i].String(),
-			IsHidden: col.Hidden,
+			UniqueID:      sessionVars.AllocPlanColumnID(),
+			ID:            col.ID,
+			RetType:       &col.FieldType,
+			OrigName:      names[i].String(),
+			IsHidden:      col.Hidden,
+			IsPublicState: isPublicState,
 		}
+		logutil.BgLogger().Warn("-------------------------------", zap.String("name", col.Name.O), zap.Bool("state", isPublicState))
 
 		if tableInfo.PKIsHandle && mysql.HasPriKeyFlag(col.Flag) {
 			handleCol = newCol
@@ -2793,6 +2796,7 @@ func (b *PlanBuilder) buildDataSource(ctx context.Context, tn *ast.TableName, as
 	if handleCol == nil {
 		ds.Columns = append(ds.Columns, model.NewExtraHandleColInfo())
 		handleCol = ds.newExtraHandleSchemaCol()
+		handleCol.IsPublicState = true
 		schema.Append(handleCol)
 		names = append(names, &types.FieldName{
 			DBName:      dbName,

@@ -1556,7 +1556,7 @@ func (er *expressionRewriter) toColumn(v *ast.ColumnName) {
 	}
 	if idx >= 0 {
 		column := er.schema.Columns[idx]
-		if column.IsHidden {
+		if column.IsHidden || !column.IsPublicState {
 			er.err = ErrUnknownColumn.GenWithStackByArgs(v.Name, clauseMsg[er.b.curClause])
 			return
 		}
